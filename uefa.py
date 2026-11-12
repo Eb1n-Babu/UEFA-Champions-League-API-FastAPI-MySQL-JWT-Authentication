@@ -1,9 +1,60 @@
 import uvicorn
 from mysql import connector
-from fastapi import FastAPI,HTTPException
 from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import jwt, JWTError
+from datetime import datetime, timedelta, timezone
+from decouple import config
 
 app = FastAPI()
+
+SECRET_KEY = "my-secret-key-change-this"
+ALGORITHM = "HS256"
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+def create_token(username: str):
+    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+
+    data = {
+        "sub": username,
+        "exp": expire
+    }
+
+    return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
+
+@app.post("/login")
+def login(user: OAuth2PasswordRequestForm = Depends()):
+
+    if user.username == "ebin" and user.password == "1234":
+
+        token = create_token(user.username)
+
+        return {
+            "access_token": token,
+            "token_type": "bearer"
+        }
+
+    raise HTTPException(status_code=401, detail="Invalid username or password")
+
+def verify_token(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM]
+        )
+
+        username = payload.get("sub")
+
+        if username is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+        return username
+
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 mydb = connector.connect(
     host="localhost",
@@ -25,7 +76,7 @@ if mydb.is_connected():
     print("Connected successfully!")
 
 @app.get("/teams")
-def read_teams():
+def read_teams(user: str = Depends(verify_token)):
     try:
         cursor = mydb.cursor()
         cursor.execute("SELECT * FROM teams")
@@ -35,7 +86,7 @@ def read_teams():
         raise f"could not retrieve all teams!"
 
 @app.get("/teams/{team_id}")
-def read_team(team_id: int):
+def read_team(team_id: int,user: str = Depends(verify_token)):
     try:
         cursor = mydb.cursor()
         cursor.execute("SELECT * FROM teams WHERE team_id = %s", (team_id,))
@@ -44,7 +95,7 @@ def read_team(team_id: int):
     except Exception as e:
         raise f"could not retrieve team {team_id}!"
 @app.post("/teams")
-def create_team(team: Team):
+def create_team(team: Team,user: str = Depends(verify_token)):
     try:
         cursor = mydb.cursor()
         cursor.execute("INSERT INTO teams VALUES (%s,%s,%s,%s)",
@@ -55,7 +106,7 @@ def create_team(team: Team):
         raise f"could not create team {team.team_id}!"
 
 @app.put("/teams/{team_id}")
-def update_team(team_id: int, team: Team):
+def update_team(team_id: int, team: Team,user: str = Depends(verify_token)):
     try:
         cursor = mydb.cursor()
         cursor.execute("UPDATE teams SET team_name = %s ,country = %s , coach = %s WHERE team_id = %s",
@@ -66,7 +117,7 @@ def update_team(team_id: int, team: Team):
         raise f"could not update team {team_id}!"
 
 @app.patch("/teams/{team_id}")
-def partial_update_team(team_id: int, team: Team):
+def partial_update_team(team_id: int, team: Team,user: str = Depends(verify_token)):
    try:
        cursor = mydb.cursor()
        if team.team_name is not None:
@@ -81,7 +132,7 @@ def partial_update_team(team_id: int, team: Team):
        raise f"could not update team {team_id}!"
 
 @app.delete("/teams/{team_id}")
-def delete_team(team_id: int):
+def delete_team(team_id: int,user: str = Depends(verify_token)):
     try:
         cursor = mydb.cursor()
         cursor.execute("DELETE FROM teams WHERE team_id = %s", (team_id,))
