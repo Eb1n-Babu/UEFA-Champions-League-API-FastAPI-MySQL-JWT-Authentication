@@ -1,28 +1,12 @@
 import uvicorn
-from mysql import connector
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from fastapi import FastAPI, HTTPException, Depends
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import jwt, JWTError
-from datetime import datetime, timedelta, timezone
-from decouple import config
+from fastapi import FastAPI, Depends, HTTPException
+from mysql_connect import mydb
+from security import verify_token, create_token
 
 app = FastAPI()
 
-SECRET_KEY = "my-secret-key-change-this"
-ALGORITHM = "HS256"
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
-def create_token(username: str):
-    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
-
-    data = {
-        "sub": username,
-        "exp": expire
-    }
-
-    return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
 
 @app.post("/login")
 def login(user: OAuth2PasswordRequestForm = Depends()):
@@ -38,42 +22,6 @@ def login(user: OAuth2PasswordRequestForm = Depends()):
 
     raise HTTPException(status_code=401, detail="Invalid username or password")
 
-def verify_token(token: str = Depends(oauth2_scheme)):
-    try:
-        payload = jwt.decode(
-            token,
-            SECRET_KEY,
-            algorithms=[ALGORITHM]
-        )
-
-        username = payload.get("sub")
-
-        if username is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-
-        return username
-
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-mydb = connector.connect(
-    host="localhost",
-    user="root",
-    password="@Ebinbabu2209",
-    database="uefa_champions_league"
-)
-
-class Team(BaseModel):
-    team_id: int | None = None
-    team_name: str | None = None
-    country: str | None = None
-    coach: str | None = None
-
-
-
-
-if mydb.is_connected():
-    print("Connected successfully!")
 
 @app.get("/teams")
 def read_teams(user: str = Depends(verify_token)):
