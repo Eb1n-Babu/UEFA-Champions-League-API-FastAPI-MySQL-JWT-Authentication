@@ -5,14 +5,17 @@ from fastapi import FastAPI, Depends, HTTPException
 from team import Team
 from mysql_connect import mydb
 from security import create_token, verify_token
+from decouple import config
 
 app = FastAPI()
 
+LOGIN_USERNAME = config("LOGIN_USERNAME")
+LOGIN_PASSWORD = config("LOGIN_PASSWORD")
 
 @app.post("/login")
 def login(user: OAuth2PasswordRequestForm = Depends()):
     """authenticate user"""
-    if user.username == "ebin" and user.password == "1234":
+    if user.username == LOGIN_USERNAME and user.password == LOGIN_PASSWORD:
         token = create_token(user.username)
         return {
             "access_token": token,
