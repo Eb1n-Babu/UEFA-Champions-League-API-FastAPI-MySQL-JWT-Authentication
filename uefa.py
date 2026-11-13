@@ -2,7 +2,7 @@
 import uvicorn
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import FastAPI, Depends, HTTPException
-from Team import Team
+from team import Team
 from mysql_connect import mydb
 from security import create_token, verify_token
 
